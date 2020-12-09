@@ -1,11 +1,14 @@
 <template>
   <div class="board">
     <div class="flex flex-row items-start">
+      <!-- only start dragging, if mouse is on column itself, not on tasks inside => @dragstart.self -->
       <div
         class="column"
         v-for="(column, $columnIndex) of board.columns"
         :key="$columnIndex"
-        @drop="moveTask($event, column.tasks)"
+        draggable
+        @dragstart.self="pickupColumn($event, $columnIndex)"
+        @drop="moveTaskOrColumn($event, column.tasks, $columnIndex)"
         @dragover.prevent
         @dragenter.prevent
       >
@@ -17,6 +20,11 @@
             :key="$taskIndex"
             draggable
             @dragstart="pickupTask($event, $taskIndex, $columnIndex)"
+            @dragover.prevent
+            @dragenter.prevent
+            @drop.stop="
+              moveTaskOrColumn($event, column.tasks, $columnIndex, $taskIndex)
+            "
             @click="goToTask(task)"
           >
             <span class="w-full flex-no-shrink font-bold">{{ task.name }}</span>
@@ -70,18 +78,47 @@ export default {
       e.dataTransfer.dropEffect = 'move'
 
       // only strings can be transfered, if we used JSON.stringify(task) we would loose the reference
-      e.dataTransfer.setData('task-index', taskIndex)
+      e.dataTransfer.setData('from-task-index', taskIndex)
       e.dataTransfer.setData('from-column-index', fromColumnIndex)
+      e.dataTransfer.setData('type', 'task')
     },
-    moveTask(e, toColumnTasks) {
+    pickupColumn(e, fromColumnIndex) {
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.dropEffect = 'move'
+
+      // only strings can be transfered, if we used JSON.stringify(task) we would loose the reference
+      e.dataTransfer.setData('from-column-index', fromColumnIndex)
+      e.dataTransfer.setData('type', 'column')
+    },
+    moveTaskOrColumn(e, toTasks, toColumnIndex, toTaskIndex) {
+      const type = e.dataTransfer.getData('type')
+      if (type === 'task') {
+        this.moveTask(
+          e,
+          toTasks,
+          toTaskIndex !== undefined ? toTaskIndex : toTasks.length
+        )
+      } else {
+        this.moveColumn(e, toColumnIndex)
+      }
+    },
+    moveTask(e, toTasks, toTaskIndex) {
       const fromColumnIndex = e.dataTransfer.getData('from-column-index')
       const fromTasks = this.board.columns[fromColumnIndex].tasks
-      const taskIndex = e.dataTransfer.getData('task-index')
+      const fromTaskIndex = e.dataTransfer.getData('from-task-index')
 
       this.$store.commit('MOVE_TASK', {
-        fromTasks: fromTasks,
-        toTasks: toColumnTasks,
-        taskIndex
+        fromTasks,
+        fromTaskIndex,
+        toTasks,
+        toTaskIndex
+      })
+    },
+    moveColumn(e, toColumnIndex) {
+      const fromColumnIndex = e.dataTransfer.getData('from-column-index')
+      this.$store.commit('MOVE_COLUMN', {
+        fromColumnIndex,
+        toColumnIndex
       })
     }
   }
