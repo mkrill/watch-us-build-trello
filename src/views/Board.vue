@@ -5,6 +5,9 @@
         class="column"
         v-for="(column, $columnIndex) of board.columns"
         :key="$columnIndex"
+        @drop="moveTask($event, column.tasks)"
+        @dragover.prevent
+        @dragenter.prevent
       >
         <div class="flex items-center mb-2 font-bold">{{ column.name }}</div>
         <div class="list-reset">
@@ -12,6 +15,8 @@
             class="task"
             v-for="(task, $taskIndex) of column.tasks"
             :key="$taskIndex"
+            draggable
+            @dragstart="pickupTask($event, $taskIndex, $columnIndex)"
             @click="goToTask(task)"
           >
             <span class="w-full flex-no-shrink font-bold">{{ task.name }}</span>
@@ -59,6 +64,25 @@ export default {
     createTask(e, tasks) {
       this.$store.commit('CREATE_TASK', { tasks: tasks, name: e.target.value })
       e.target.value = ''
+    },
+    pickupTask(e, taskIndex, fromColumnIndex) {
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.dropEffect = 'move'
+
+      // only strings can be transfered, if we used JSON.stringify(task) we would loose the reference
+      e.dataTransfer.setData('task-index', taskIndex)
+      e.dataTransfer.setData('from-column-index', fromColumnIndex)
+    },
+    moveTask(e, toColumnTasks) {
+      const fromColumnIndex = e.dataTransfer.getData('from-column-index')
+      const fromTasks = this.board.columns[fromColumnIndex].tasks
+      const taskIndex = e.dataTransfer.getData('task-index')
+
+      this.$store.commit('MOVE_TASK', {
+        fromTasks: fromTasks,
+        toTasks: toColumnTasks,
+        taskIndex
+      })
     }
   }
 }
